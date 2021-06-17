@@ -63,6 +63,15 @@ def get_teams_stats(option):
     df = res[0]
     columns = list(df.columns.droplevel())
     df.columns = columns
+
+    df["shoots_in"] = df["Tirs"].apply(lambda x: int(x.split("-")[0]))
+    df["shoots_total"] = df["Tirs"].apply(lambda x: int(x.split("-")[1]))
+    df["three_pts_in"] = df["3 pts"].apply(lambda x: int(x.split("-")[0]))
+    df["three_pts_total"] = df["3 pts"].apply(lambda x: int(x.split("-")[1]))
+    df["lf_in"] = df["LF"].apply(lambda x: int(x.split("-")[0]))
+    df["lf_total"] = df["LF"].apply(lambda x: int(x.split("-")[1]))
+    df = df.drop(["Tirs", "3 pts", "LF", "%", "%.1", "%.2"], axis=1)
+
     return df
 
 def get_match_story():
