@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import math
 
-from scrapping_pro_b.scraping.utils import * 
+import utils.utils as utils
 
 
 def get_ranking():
@@ -95,10 +95,10 @@ def get_match_story():
                "Tir extérieur réussi", "Tir extérieur manqué",
                "Tir contré", "Tir à 3 points réussi", "dunk_missed"]
     
-    story_df["home_actions"] = story_df["home"].apply(lambda x:extract_actions(x, actions))
-    story_df["home_player"] = story_df["home"].apply(lambda x:remove_actions(x, actions))
-    story_df["away_actions"] = story_df["away"].apply(lambda x:extract_actions(x, actions))
-    story_df["away_player"] = story_df["away"].apply(lambda x:remove_actions(x, actions))
+    story_df["home_actions"] = story_df["home"].apply(lambda x:utils.extract_actions(x, actions))
+    story_df["home_player"] = story_df["home"].apply(lambda x:utils.remove_actions(x, actions))
+    story_df["away_actions"] = story_df["away"].apply(lambda x:utils.extract_actions(x, actions))
+    story_df["away_player"] = story_df["away"].apply(lambda x:utils.remove_actions(x, actions))
     
     story_df["time"] = story_df["score"].apply(lambda x: x[:5])
     story_df["home_score"] = story_df["score"].apply(lambda x: x[5:].split("-")[0])
