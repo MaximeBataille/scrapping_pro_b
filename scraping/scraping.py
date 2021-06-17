@@ -6,8 +6,7 @@ import pandas as pd
 import numpy as np
 import math
 
-from utils import * 
-
+from scrapping_pro_b.scraping.utils import * 
 
 
 def get_ranking():
