@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import math
 
+import utils.utils as utils
 
 
 def get_ranking():
@@ -61,6 +62,15 @@ def get_teams_stats(option):
     df = res[0]
     columns = list(df.columns.droplevel())
     df.columns = columns
+
+    df["shoots_in"] = df["Tirs"].apply(lambda x: int(x.split("-")[0]))
+    df["shoots_total"] = df["Tirs"].apply(lambda x: int(x.split("-")[1]))
+    df["three_pts_in"] = df["3 pts"].apply(lambda x: int(x.split("-")[0]))
+    df["three_pts_total"] = df["3 pts"].apply(lambda x: int(x.split("-")[1]))
+    df["lf_in"] = df["LF"].apply(lambda x: int(x.split("-")[0]))
+    df["lf_total"] = df["LF"].apply(lambda x: int(x.split("-")[1]))
+    df = df.drop(["Tirs", "3 pts", "LF", "%", "%.1", "%.2"], axis=1)
+
     return df
 
 def get_match_story():
@@ -85,10 +95,10 @@ def get_match_story():
                "Tir extérieur réussi", "Tir extérieur manqué",
                "Tir contré", "Tir à 3 points réussi", "dunk_missed"]
     
-    story_df["home_actions"] = story_df["home"].apply(lambda x:extract_actions(x, actions))
-    story_df["home_player"] = story_df["home"].apply(lambda x:remove_actions(x, actions))
-    story_df["away_actions"] = story_df["away"].apply(lambda x:extract_actions(x, actions))
-    story_df["away_player"] = story_df["away"].apply(lambda x:remove_actions(x, actions))
+    story_df["home_actions"] = story_df["home"].apply(lambda x:utils.extract_actions(x, actions))
+    story_df["home_player"] = story_df["home"].apply(lambda x:utils.remove_actions(x, actions))
+    story_df["away_actions"] = story_df["away"].apply(lambda x:utils.extract_actions(x, actions))
+    story_df["away_player"] = story_df["away"].apply(lambda x:utils.remove_actions(x, actions))
     
     story_df["time"] = story_df["score"].apply(lambda x: x[:5])
     story_df["home_score"] = story_df["score"].apply(lambda x: x[5:].split("-")[0])
@@ -104,49 +114,4 @@ def get_players_stats(team):
 def get_match_pbp(num_url_match):
     
     return None
-
-###### utils
-def extract_actions(x, actions):
-    
-    """
-    extract action in a string thanks to 
-    a predefined list of actions
-    
-    Args:
-        x : string
-        actions : list of predefined actions
-        
-    Return:
-        action
-    """
-    if isinstance(x, str):
-        for action in actions:
-            if action in x:
-                break
-    elif math.isnan(x):
-        action =  np.nan
-    return action
-
-def remove_actions(x, actions):
-    
-    """
-    remove action in a string thanks to 
-    a predefined list of actions
-    
-    Args:
-        x : string
-        actions : list of predefined actions
-        
-    Return:
-        string without action (player, nan, empty string)
-    """
-    if isinstance(x, str):
-        for action in actions:
-            if action in x:
-                player_action = x.replace(action, "")
-                player_action = player_action.split(".")[1]
-                player_action = player_action.strip()
-    elif math.isnan(x):
-        player_action =  np.nan
-    return player_action
 
