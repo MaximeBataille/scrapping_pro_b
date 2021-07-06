@@ -166,7 +166,6 @@ def second_on_the_ground(df, player):
     # home or away for player
     home_players = list(story_df["home_player"])
     away_players = list(story_df["away_player"])
-    print(player)
 
     if player in home_players:
         col_place = "home"
@@ -188,11 +187,17 @@ def second_on_the_ground(df, player):
         time = row['time']
 
         if period > 4:
-            minutes = 5 - int(time.split(":")[0])
+            if int(time.split(":")[0]) == 5:
+                minutes = 0
+            else:
+                minutes = 5 - int(time.split(":")[0]) - 1
             seconds = 60 - int(time.split(":")[1])
             seconds = seconds%60
         elif period <= 4:
-            minutes = 10 - int(time.split(":")[0])
+            if int(time.split(":")[0]) == 10:
+                minutes = 0
+            else:
+                minutes = 10 - int(time.split(":")[0]) - 1
             seconds = 60 - int(time.split(":")[1])
             seconds = seconds%60
 
@@ -207,21 +212,33 @@ def second_on_the_ground(df, player):
 
         if player == player_action:
             if action == 'Remplacement - joueur entrant':
+                """
+                print("-----")
+                print("start")
+                print(time)
+                print(seconds_match)
+                """
                 on_ground[seconds_match] = True
             elif action == 'Remplacement - joueur sortant':
+                """
+                print("------")
+                print("end")
                 print(time)
-                print(period)
                 print(seconds_match)
+                """
                 on_ground[seconds_match] = False
-                print(on_ground[seconds_match])
 
     # fullfill 0 with True or False
     for i in range(len(on_ground)):
         og = on_ground[i]
         if og is False or og is True:
             break
+    # the first substitution allows to determine the first element of on_ground
+    if og is False:
+        on_ground[0] = True 
+    elif og is True:
+        on_ground[0] = False
 
-    on_ground[0] = og
     for i in range(len(on_ground)):
         og = on_ground[i]
         if og is False or og is True:
@@ -229,7 +246,24 @@ def second_on_the_ground(df, player):
         else:
             on_ground[i] = memory
 
-    return on_ground
+    #retrieve the periods when a player is on the ground
+    start_ground = []
+    end_ground = []
+    memory = False
+    for i, bool_on_ground in enumerate(on_ground):
+        if bool_on_ground == True and memory == False:
+            start_ground.append(i)
+        elif bool_on_ground == False and memory == True:
+            end_ground.append(i)
+        if i == len(on_ground) - 1: # if a player is on the ground at the end of the match
+            end_ground.append(i)
+        memory = bool_on_ground
+
+    sequence = []
+    for start, end in zip(start_ground, end_ground):
+        sequence.append([start, end])
+
+    return sequence 
 
 
 
