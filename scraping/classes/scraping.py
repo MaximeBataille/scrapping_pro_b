@@ -1,12 +1,11 @@
 # libraries
-import requests 
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 import pandas as pd
 import numpy as np
 import math
 
-import utils.utils as utils
+import classes.utils as utils
 
 
 def get_ranking():
@@ -33,7 +32,6 @@ def get_ranking():
     df = df.drop('équipe', axis=1)
     df.columns = columns
     return df 
-
 
 def get_teams_stats(option):
     
