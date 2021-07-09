@@ -1,5 +1,4 @@
 # libraries
-
 import math 
 import numpy as np
 
@@ -47,6 +46,14 @@ def remove_actions(x, actions):
         player_action =  np.nan
     return player_action
 
+def merge_players_actions(story_df):
+
+    df = story_df.copy()
+
+    df['action'] = df.home_actions.fillna(df.away_actions)
+    df['player'] = df.home_player.fillna(df.away_player)
+
+    return df 
 
 def nb_periods(serie_time):
 
@@ -68,17 +75,44 @@ def nb_periods(serie_time):
     memory = 10
     cpt = 0
     for minute in minutes:
-        if minute > memory:
+        if minute > memory and minute >= 9:
             cpt += 1
         memory = minute
 
     return cpt
 
+def get_periods(serie_time):
+
+    """
+    Return the number the period of each moment of the match
+
+    Compute this number by looking for the number of times
+        when the chrono goes from 0 minutes to 9 minutes.
+
+    Args:
+        serie_time : column time of the story_df
+
+    Return:
+        timeserie with period number at each moment of the match
+    """
+
+    periods = []
+    minutes = list(serie_time.apply(lambda x: int(x.split(":")[0])))
+
+    memory = 10
+    cpt = 0
+    for minute in minutes:
+        if minute > memory and minute >= 9:
+            cpt += 1
+        memory = minute
+        periods.append(cpt)
+
+    return periods
 
 def list_periods(serie_time):
 
     """
-    Return the the period number for each action
+    Return the period number for each action
 
     Compute this number by looking for the number of times
         when the chrono goes from 0 minutes to 9 minutes.
@@ -104,7 +138,6 @@ def list_periods(serie_time):
 
     return period
 
-
 def list_players(read_html):
 
     """
@@ -122,6 +155,34 @@ def list_players(read_html):
     players_away_team = read_html[1].iloc[:, 1]
 
     return players_home_team, players_away_team
+
+def get_seconds(serie_time):
+
+    """
+    Return the the second of each moment of the match
+
+    Args:
+        serie_time : column time of the story_df
+    
+    Return:
+        serie --> second for each moment of the match
+    """
+
+    periods = get_periods(serie_time)
+    minutes = list(serie_time.apply(lambda x: int(x.split(":")[0])))
+    seconds = list(serie_time.apply(lambda x: int(x.split(":")[1])))
+
+    seconds_list = []
+
+    for period, minute, second in zip(periods, minutes, seconds):
+        if period < 4:
+            sec = (period * 10 * 60) + (600 - (minute * 60 + second))
+            seconds_list.append(sec)
+        elif period >= 4:
+            sec = (period * 5 * 60) + (300 - (minute * 60 + second))
+            seconds_list.append(sec) 
+    
+    return seconds_list
 
 def nb_seconds(serie_time):
 
@@ -148,125 +209,45 @@ def nb_seconds(serie_time):
         seconds += seconds + (extra_times * 5 * 60)
         return seconds
 
-def second_on_the_ground(df, player):
+def get_sequence_on_ground(story_df, player):
 
-    """
-    Return a boolean list. True if the player is on the ground, False otherwise, for each second
+    story_df['period'] = get_periods(story_df.time)
+    story_df['seconds'] = get_seconds(story_df.time)
+    df_player = story_df[story_df.player == player]
 
-    Args:
-        story_df : story of the match
-        player : player name
-    
-    Return:
-        list --> True / False for each second
-    """
+    check_start_five = False 
+    on_ground = False # player on the ground or not
+    sub_in = None 
+    out = None
+    sub_in_list = []
+    out_list = []
 
-    story_df = df.copy()
+    for i, row in df_player.iterrows():
+        action = row['action']
 
-    # home or away for player
-    home_players = list(story_df["home_player"])
-    away_players = list(story_df["away_player"])
+        if action == 'Remplacement - joueur sortant':
+            out = row['seconds']
+            if check_start_five == False:
+                sub_in = 0
+                sub_in_list.append(sub_in)
+            on_ground = False
+            out_list.append(out)
 
-    if player in home_players:
-        col_place = "home"
-    elif player in away_players:
-        col_place = "away"
-    else :
-        print("Error : do not find home / away")
+        elif action == 'Remplacement - joueur entrant':
+            sub_in = row['seconds']
+            if check_start_five == False:
+                check_start_five = True
+            on_ground = True
+            sub_in_list.append(sub_in)
 
-    seconds = nb_seconds(story_df['time'])
-    seconds_list = list(range(seconds))
+        if i == df_player.index[-1]: # if a player finishes the match
+            if on_ground:
+                out = nb_seconds(story_df.time) # number of seconds in the match
+                out_list.append(out)
 
-    story_df['period'] = list_periods(story_df.time)
+    sequence = [(i, o) for i,o in zip(sub_in_list, out_list)]
 
-    on_ground = [0] * len(seconds_list)
-
-    for i, row in story_df.iterrows():
-        period = row['period']
-        period += 1
-        time = row['time']
-
-        if period > 4:
-            if int(time.split(":")[0]) == 5:
-                minutes = 0
-            else:
-                minutes = 5 - int(time.split(":")[0]) - 1
-            seconds = 60 - int(time.split(":")[1])
-            seconds = seconds%60
-        elif period <= 4:
-            if int(time.split(":")[0]) == 10:
-                minutes = 0
-            else:
-                minutes = 10 - int(time.split(":")[0]) - 1
-            seconds = 60 - int(time.split(":")[1])
-            seconds = seconds%60
-
-        # if during extra time
-        if period > 4:
-            seconds_match = (4 * 10 * 60) + ((period - 4 - 1) * 5 * 60) + minutes * 60 + seconds
-        elif period <= 4:
-            seconds_match = ((period - 1) * 10 * 60) + minutes * 60 + seconds
-
-        action = row[col_place + '_actions']
-        player_action = row[col_place + '_player']
-
-        if player == player_action:
-            if action == 'Remplacement - joueur entrant':
-                """
-                print("-----")
-                print("start")
-                print(time)
-                print(seconds_match)
-                """
-                on_ground[seconds_match] = True
-            elif action == 'Remplacement - joueur sortant':
-                """
-                print("------")
-                print("end")
-                print(time)
-                print(seconds_match)
-                """
-                on_ground[seconds_match] = False
-
-    # fullfill 0 with True or False
-    for i in range(len(on_ground)):
-        og = on_ground[i]
-        if og is False or og is True:
-            break
-    # the first substitution allows to determine the first element of on_ground
-    if og is False:
-        on_ground[0] = True 
-    elif og is True:
-        on_ground[0] = False
-
-    for i in range(len(on_ground)):
-        og = on_ground[i]
-        if og is False or og is True:
-            memory = og
-        else:
-            on_ground[i] = memory
-
-    #retrieve the periods when a player is on the ground
-    start_ground = []
-    end_ground = []
-    memory = False
-    for i, bool_on_ground in enumerate(on_ground):
-        if bool_on_ground == True and memory == False:
-            start_ground.append(i)
-        elif bool_on_ground == False and memory == True:
-            end_ground.append(i)
-        if i == len(on_ground) - 1: # if a player is on the ground at the end of the match
-            end_ground.append(i)
-        memory = bool_on_ground
-
-    sequence = []
-    for start, end in zip(start_ground, end_ground):
-        sequence.append([start, end])
-
-    return sequence 
-
-
-
+    return sequence
 
 
 
