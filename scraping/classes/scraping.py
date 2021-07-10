@@ -27,10 +27,17 @@ def get_ranking():
     url = "https://www.lnb.fr/fr/pro-b/classement-2-57.html"
     res = pd.read_html(url)
     df = res[0]
+
     columns = list(df.columns.droplevel())
     columns.remove('Unnamed: 2_level_1')
     df = df.drop('équipe', axis=1)
     df.columns = columns
+
+    df = df.rename(columns={'Pos.':'RANK', 'équipe':'TEAM', '% vict.':'WIN%', 'MJ':'GP',
+                        'V':'W', 'D':'L', 'PR':'FOR', 'PR':'MPTS', 'CTR':'MPTSA'})
+
+    df['WIN%'] = df['WIN%'].apply(lambda x: float(x[:-1]))
+
     return df 
 
 def get_teams_stats(option):
