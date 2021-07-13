@@ -111,16 +111,60 @@ def get_url_matches():
     codes_match = [int(re.findall('\d+', url['href'])[0]) for url in urls if 'prob/match' in url['href']]
     codes_match = list(set(codes_match))
 
-    return codes_match
+    urls_matches = [f"https://www.lnb.fr/fr/prob/match/--{code}.html#stats" for code in codes_match]
 
+    return urls_matches
 
-def get_match_id():
+def get_code_lnb(url_match):
+
+    return int(re.findall('\d+', url_match)[0])
+
+def new_url_matches():
+
+    url_matches = get_url_matches()
+    codes_matches = [get_code_lnb(url_match) for url_match in url_matches]
+
+    conn = db.connect()
+    df = db.select_table("MATCH", conn)
+    codes_scrapped = list(df['code_lnb'])
+    
+    codes_to_scrap = [code_match for code_match in codes_matches if code_match not in codes_scrapped]
+
+    urls_to_scrap = [f"https://www.lnb.fr/fr/prob/match/--{code_to_scrap}.html#stats" for code_to_scrap in codes_to_scrap]
+
+    return urls_to_scrap
+
+def get_url_match_to_play():
+
+    conn = db.connect()
+    df = db.select_table("MATCH", conn)
+
+    codes_to_scrap = list(df[df['played'] == False]["code_lnb"])
+
+    urls_to_be_updated = [f"https://www.lnb.fr/fr/prob/match/--{code_to_scrap}.html#stats" for code_to_scrap in codes_to_scrap]
+
+    return urls_to_be_updated
+
+def get_match_day(url_match):
+
+    conn = db.connect()
+
+    page = requests.get(url_match)
+    soup = BeautifulSoup(page.content, "html.parser")
+    select_tag = soup.find(id="gameday").find_all("option")
+    day =  int(re.findall('\d+', select_tag[0].text)[0])
+
+    conn.close()
+
+    return day
+
+def get_match_id(url_match):
 
     conn = db.connect()
     
-    url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
+    #url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
 
-    res = pd.read_html(url)
+    res = pd.read_html(url_match)
 
     home_team = res[0].columns[0][0]
     away_team = res[1].columns[0][0]
@@ -129,7 +173,7 @@ def get_match_id():
     home_id = df_teams[df_teams['TEAM'] == home_team].iloc[0]['id']
     away_id = df_teams[df_teams['TEAM'] == away_team].iloc[0]['id']
 
-    page = requests.get(url)
+    page = requests.get(url_match)
     soup = BeautifulSoup(page.content, "html.parser")
     select_tag = soup.find(id="gameday").find_all("option")
     day =  int(re.findall('\d+', select_tag[0].text)[0])
@@ -140,21 +184,21 @@ def get_match_id():
     
     return match_id
 
-def get_match_teams():
+def get_match_teams(url_match):
     
-    url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
+    #url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
 
-    res = pd.read_html(url)
+    res = pd.read_html(url_match)
     home_team = res[0].columns[0][0]
     away_team = res[1].columns[0][0]
 
     return home_team, away_team
 
-def get_match_date():
+def get_match_date(url_match):
 
-    url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
+    #url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
 
-    page = requests.get(url)
+    page = requests.get(url_match)
     soup = BeautifulSoup(page.content, "html.parser")
 
     res = soup.find("p")
@@ -164,14 +208,36 @@ def get_match_date():
 
     return datetime(year, month, day)
 
-def get_match_info():
+def get_match_status(url_match):
 
-    match_id = get_match_id()
-    home_team, away_team = get_match_teams()
-    match_date = get_match_date()
+    page = requests.get(url_match)
 
-    return {'match_id':match_id, 'home_team':home_team,
-            'away_team':away_team, 'match_date':match_date}
+    soup = BeautifulSoup(page.content, "html.parser")
+    res = soup.find("div", {"class":"game-result"}).text
+    try:
+        home_score = int(res.strip().split('-')[0])
+        if home_score > 0:
+            return True 
+        else:
+            return False
+    except:
+        return False
+
+def get_match_info(url_match):
+
+    match_id = get_match_id(url_match)
+    match_day = get_match_day(url_match)
+    home_team, away_team = get_match_teams(url_match)
+    match_date = get_match_date(url_match)
+    match_status = get_match_status(url_match)
+    code_lnb = get_code_lnb(url_match)
+
+    match_info = {'match_id':match_id, 'day': match_day, 
+            'date':match_date,
+            'home_team':home_team, 'away_team':away_team,
+            'played':match_status, 'code_lnb':code_lnb}
+
+    return pd.DataFrame([match_info])
 
 def get_match_story():
 
@@ -209,7 +275,6 @@ def get_match_story():
     story_df = story_df.drop(["home", "away", "score"], axis=1)
     
     return story_df
-
 
 def get_players_stats(team):
     
