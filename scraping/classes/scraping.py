@@ -4,8 +4,13 @@ from urllib.request import urlopen
 import pandas as pd
 import numpy as np
 import math
+from bs4 import BeautifulSoup
+import requests
+import re
+from datetime import * 
 
 import classes.utils as utils
+import classes.db_utils as db
 
 
 def get_ranking():
@@ -33,10 +38,13 @@ def get_ranking():
     df = df.drop('équipe', axis=1)
     df.columns = columns
 
-    df = df.rename(columns={'Pos.':'RANK', 'équipe':'TEAM', '% vict.':'WIN%', 'MJ':'GP',
+    df = df.rename(columns={'Pos.':'RANK', 'équipe':'TEAM', '% vict.':'WINp', 'MJ':'GP',
                         'V':'W', 'D':'L', 'PR':'FOR', 'PR':'MPTS', 'CTR':'MPTSA'})
 
-    df['WIN%'] = df['WIN%'].apply(lambda x: float(x[:-1]))
+    df['WINp'] = df['WINp'].apply(lambda x: float(x[:-1]))
+
+    df = df.sort_values(by='TEAM')
+    df['team_id'] = list(range(1, len(df) + 1))
 
     return df 
 
@@ -68,20 +76,110 @@ def get_teams_stats(option):
     columns = list(df.columns.droplevel())
     df.columns = columns
 
-    df["shoots_in"] = df["Tirs"].apply(lambda x: int(x.split("-")[0]))
-    df["shoots_total"] = df["Tirs"].apply(lambda x: int(x.split("-")[1]))
-    df["three_pts_in"] = df["3 pts"].apply(lambda x: int(x.split("-")[0]))
-    df["three_pts_total"] = df["3 pts"].apply(lambda x: int(x.split("-")[1]))
-    df["lf_in"] = df["LF"].apply(lambda x: int(x.split("-")[0]))
-    df["lf_total"] = df["LF"].apply(lambda x: int(x.split("-")[1]))
-    df = df.drop(["Tirs", "3 pts", "LF", "%", "%.1", "%.2"], axis=1)
+    df["FG"] = df["Tirs"].apply(lambda x: int(x.split("-")[0]))
+    df["FGA"] = df["Tirs"].apply(lambda x: int(x.split("-")[1]))
+    df["3PM"] = df["3 pts"].apply(lambda x: int(x.split("-")[0]))
+    df["3PA"] = df["3 pts"].apply(lambda x: int(x.split("-")[1]))
+    df["FTM"] = df["LF"].apply(lambda x: int(x.split("-")[0]))            
+    df["FTA"] = df["LF"].apply(lambda x: int(x.split("-")[1]))
+    df = df.drop(["Tirs", "3 pts", "LF"], axis=1)
+
+    df = df.rename(columns={'Equipes':'TEAM', 'MJ':'GP', 'Min':'MIN', 'Pts':'PTS',
+                            'O':'OREB', 'D':'DREB', 'T':'REB', 'Pr':'BLK',
+                            'Ct':'BLKA', 'Pd':'AST', 'In':'STL', 'Bp':'TOV',
+                            'Fte':'PF', 'Fpr':'PFD', 'Év':'EVAL', 
+                            '%':'FGp', '%.1':'3Pp',  '%.2':'FTp'})
+
+    df = df.sort_values(by='TEAM')
+    df['team_id'] = list(range(1, len(df) + 1))
+
+    # team_id in first position
+    cols = list(df.columns)
+    cols = cols[-1:] + cols[:-1]
+    df = df[cols]
 
     return df
 
+def get_url_matches():
+
+    url = 'https://www.lnb.fr/fr/pro-b/calendrier-prob-59.html'
+
+    page = requests.get(url)
+    soup = BeautifulSoup(page.content, "html.parser")
+    urls = soup.find_all('a', href=True)
+
+    codes_match = [int(re.findall('\d+', url['href'])[0]) for url in urls if 'prob/match' in url['href']]
+    codes_match = list(set(codes_match))
+
+    return codes_match
+
+
+def get_match_id():
+
+    conn = db.connect()
+    
+    url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
+
+    res = pd.read_html(url)
+
+    home_team = res[0].columns[0][0]
+    away_team = res[1].columns[0][0]
+
+    df_teams = db.select_table("TEAMS", conn)
+    home_id = df_teams[df_teams['TEAM'] == home_team].iloc[0]['id']
+    away_id = df_teams[df_teams['TEAM'] == away_team].iloc[0]['id']
+
+    page = requests.get(url)
+    soup = BeautifulSoup(page.content, "html.parser")
+    select_tag = soup.find(id="gameday").find_all("option")
+    day =  int(re.findall('\d+', select_tag[0].text)[0])
+
+    match_id = int(str(day) + str(home_id) + str(away_id))
+
+    conn.close()
+    
+    return match_id
+
+def get_match_teams():
+    
+    url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
+
+    res = pd.read_html(url)
+    home_team = res[0].columns[0][0]
+    away_team = res[1].columns[0][0]
+
+    return home_team, away_team
+
+def get_match_date():
+
+    url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
+
+    page = requests.get(url)
+    soup = BeautifulSoup(page.content, "html.parser")
+
+    res = soup.find("p")
+    day = int(res.text.split('-')[0].split('.')[1])
+    month = int(res.text.split('-')[0].split('.')[2])
+    year = int(res.text.split('-')[0].split('.')[3])
+
+    return datetime(year, month, day)
+
+def get_match_info():
+
+    match_id = get_match_id()
+    home_team, away_team = get_match_teams()
+    match_date = get_match_date()
+
+    return {'match_id':match_id, 'home_team':home_team,
+            'away_team':away_team, 'match_date':match_date}
+
 def get_match_story():
+
+    conn = db.connect()
     
     url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
     res = pd.read_html(url)
+
     story_df = res[2]
     columns = ["home", "score", "away"]
     story_df.columns = columns
@@ -111,6 +209,7 @@ def get_match_story():
     story_df = story_df.drop(["home", "away", "score"], axis=1)
     
     return story_df
+
 
 def get_players_stats(team):
     
