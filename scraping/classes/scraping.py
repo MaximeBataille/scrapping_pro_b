@@ -246,6 +246,9 @@ def get_match_story():
     url = "https://www.lnb.fr/fr/prob/match/fos-sur-mer-rouen-201666835.html#stats"
     res = pd.read_html(url)
 
+    home_team = res[0].columns[0][0]
+    away_team = res[1].columns[0][0]
+
     story_df = res[2]
     columns = ["home", "score", "away"]
     story_df.columns = columns
@@ -273,7 +276,16 @@ def get_match_story():
     story_df["home_score"] = story_df["score"].apply(lambda x: x[5:].split("-")[0])
     story_df["away_score"] = story_df["score"].apply(lambda x: x[5:].split("-")[1])
     story_df = story_df.drop(["home", "away", "score"], axis=1)
-    
+
+    story_df["team"] = story_df["home_player"].fillna(away_team)
+    story_df["team"] = [home_team if x != away_team else x for x in story_df["team"]]
+
+    story_df["action"] = story_df["home_actions"].fillna(story_df["away_actions"])
+    story_df["player"] = story_df["home_player"].fillna(story_df["away_player"])
+
+    story_df = story_df.drop(["home_actions", "away_actions",
+                            "home_player", "away_player"], axis=1)
+
     return story_df
 
 def get_players_stats(team):
