@@ -18,10 +18,14 @@ def extract_actions(x, actions):
     if isinstance(x, str):
         for action in actions:
             if action in x:
+                if "Faute provoquée" in x:
+                    return "Faute provoquée"
+                else:
+                    return action
                 break
     elif math.isnan(x):
         action =  np.nan
-    return action
+        return action
 
 def remove_actions(x, actions):
     
@@ -39,11 +43,16 @@ def remove_actions(x, actions):
     if isinstance(x, str):
         for action in actions:
             if action in x:
+                if "Faute provoquée" in x:
+                    action = "Faute provoquée"
                 player_action = x.replace(action, "")
                 player_action = player_action.split(".")[1]
                 player_action = player_action.strip()
+                break
     elif math.isnan(x):
         player_action =  np.nan
+    else:
+        player_action = 'caca'
     return player_action
 
 def merge_players_actions(story_df):
